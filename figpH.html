@@ -18,26 +18,47 @@
   <div id="plot" class="skeleton" aria-busy="true"></div>
 
   <script>
-    const el = document.getElementById("plot");
-    let loaded = false;
+  const el = document.getElementById("plot");
+  let started = false;
 
-    async function render() {
-      if (loaded) return;
-      loaded = true;
-      const resp = await fetch("figpH.json", {cache: "force-cache"});
+  function waitForPlotly() {
+    return new Promise((resolve) => {
+      if (window.Plotly) return resolve();
+      const iv = setInterval(() => {
+        if (window.Plotly) { clearInterval(iv); resolve(); }
+      }, 50);
+    });
+  }
+
+  async function render() {
+    if (started) return;
+    started = true;
+    try {
+      await waitForPlotly();
+
+      // Fetch the figure JSON from the same folder
+      const resp = await fetch("figpH.json", { cache: "reload" });
+      if (!resp.ok) throw new Error("Could not load figpH.json");
       const fig = await resp.json();
-      await Plotly.newPlot(el, fig.data, fig.layout, {responsive:true});
-      el.classList.remove("skeleton");
-    }
 
-    // Lazy-load when near viewport
-    const obs = new IntersectionObserver((entries)=>{
-      if (entries.some(e => e.isIntersecting)) {
-        render();
-        obs.disconnect();
-      }
-    }, {rootMargin: "200px"});
-    obs.observe(el);
-  </script>
+      await Plotly.newPlot(el, fig.data, fig.layout, { responsive: true });
+      el.classList.remove("skeleton");
+    } catch (err) {
+      console.error("Render error:", err);
+      el.classList.remove("skeleton");
+      el.innerHTML = "<p style='text-align:center'>Could not load the plot. Open the console for details.</p>";
+    }
+  }
+
+  // Lazy-load when near viewport (or just call render() directly if you prefer)
+  const obs = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) {
+      render();
+      obs.disconnect();
+    }
+  }, { rootMargin: "200px" });
+
+  obs.observe(el);
+</script>
 </body>
 </html>
